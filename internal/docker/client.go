@@ -18,30 +18,51 @@ type Container struct {
 
 type Client struct {
 	httpClient *http.Client
+	baseURL    string
 }
 
-func NewClient(socketPath string) *Client {
-	path := strings.TrimPrefix(socketPath, "unix://")
-	
-	// Create a transport that uses Unix domain sockets
-	tr := &http.Transport{
-		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-			return net.Dial("unix", path)
-		},
+func NewClient(endpoint string) *Client {
+	var tr *http.Transport
+	baseURL := "http://localhost" // default for unix socket
+
+	if strings.HasPrefix(endpoint, "unix://") {
+		path := strings.TrimPrefix(endpoint, "unix://")
+		tr = &http.Transport{
+			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+				return net.Dial("unix", path)
+			},
+		}
+	} else if strings.HasPrefix(endpoint, "tcp://") {
+		// Convert tcp:// to http:// for the HTTP client
+		baseURL = strings.Replace(endpoint, "tcp://", "http://", 1)
+		tr = &http.Transport{}
+	} else if strings.HasPrefix(endpoint, "http://") || strings.HasPrefix(endpoint, "https://") {
+		baseURL = endpoint
+		tr = &http.Transport{}
+	} else {
+		// Fallback assuming it's a raw socket path
+		path := endpoint
+		tr = &http.Transport{
+			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+				return net.Dial("unix", path)
+			},
+		}
 	}
-	
+
 	return &Client{
 		httpClient: &http.Client{
 			Transport: tr,
-			Timeout:   2 * time.Second,
+			Timeout:   5 * time.Second,
 		},
+		baseURL: strings.TrimRight(baseURL, "/"),
 	}
 }
 
 // GetContainers fetches the list of containers.
 func (c *Client) GetContainers() ([]Container, error) {
 	// Docker API endpoint for listing all containers
-	resp, err := c.httpClient.Get("http://localhost/containers/json?all=1")
+	url := c.baseURL + "/containers/json?all=1"
+	resp, err := c.httpClient.Get(url)
 	if err != nil {
 		return nil, err
 	}

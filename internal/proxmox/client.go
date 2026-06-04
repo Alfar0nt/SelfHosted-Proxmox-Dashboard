@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math/rand"
 	"net/http"
+	"net/url"
 	"time"
 )
 
@@ -37,7 +38,7 @@ func NewClient(url, nodeName, tokenID, tokenSecret string, mock bool) *Client {
 	tr := &http.Transport{
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 	}
-	
+
 	return &Client{
 		url:         url,
 		nodeName:    nodeName,
@@ -56,7 +57,7 @@ func (c *Client) GetNodeStatus() (NodeStatus, error) {
 		return getMockStatus(), nil
 	}
 
-	endpoint := fmt.Sprintf("%s/nodes/%s/status", c.url, c.nodeName)
+	endpoint := fmt.Sprintf("%s/nodes/%s/status", c.url, url.PathEscape(c.nodeName))
 	req, err := http.NewRequest("GET", endpoint, nil)
 	if err != nil {
 		return NodeStatus{}, err
@@ -90,14 +91,14 @@ func getMockStatus() NodeStatus {
 	// Generate some random varying stats for testing the UI
 	var status NodeStatus
 	status.CPU = 0.15 + rand.Float64()*(0.65-0.15) // Random CPU between 15% and 65%
-	
-	status.Memory.Total = 16 * 1024 * 1024 * 1024 // 16GB
+
+	status.Memory.Total = 16 * 1024 * 1024 * 1024                                         // 16GB
 	status.Memory.Used = int64(float64(status.Memory.Total) * (0.4 + rand.Float64()*0.2)) // 40-60% used
 	status.Memory.Free = status.Memory.Total - status.Memory.Used
-	
+
 	status.Disk.Total = 256 * 1024 * 1024 * 1024 // 256GB
 	status.Disk.Used = 120 * 1024 * 1024 * 1024  // ~120GB used
-	
+
 	status.Uptime = 3600 * 24 * 7 // 7 days
 
 	return status
